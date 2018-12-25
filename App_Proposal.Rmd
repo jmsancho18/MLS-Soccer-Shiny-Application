@@ -1,0 +1,137 @@
+---
+title: "PubH 7462 App Proposal"
+author: "Bryce Murphy, Jake Niederer, Ian Williamson"
+date: "April 2, 2018"
+output: html_document
+---
+
+```
+{knitr::opts_chunk$set(echo = TRUE)
+library(shiny)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(fmsb)
+library(cluster)
+library(FactoMineR)
+library(factoextra)
+library(tibble)
+library(NbClust)
+library(corrplot)
+library(DT)
+soccer <- read_csv("~/pubh 7462/final project/wtfootball/ASAplayertable_totals.csv")
+```
+
+## MLS Side-by-Side Player Analysis
+
+### Purpose:
+
+This will be a Shiny app that allows the user to directly compare any two MLS players based on their season stats with visual tools that we have not yet seen applied to these data.
+
+### Data:
+
+The MLS seasonal data are publicly available and can be downloaded from the American Soccer Analysis web site (https://www.americansocceranalysis.com/). We are developing the app using player data from the 2015-2017 seasons. Many more seasons are currently available on the web site and we plan to include them in the final app. The web site already offers an interactive Shiny app to perform some player analysis. However, it does not offer the functionality of side-by-side comparison and does not use the visual tools we plan to incorporate.
+
+
+### Functions:
+
+> Basic user interface:
+
+* Choose which season's records to use (e.g. 2015, 2016, or 2017)
+
+* Choose two players to compare (e.g. Jordan Morris vs. Chris Wondolowski)
+
+* Choose which metrics to use for comparison (e.g. Goals, Shots, Shots on Target, etc.)
+
+> Basic output:
+
+* Table form
+
+* Radar chart
+
+```
+futbol <- 
+  soccer %>%
+  select(-First, - Last) %>%
+  mutate_if(is.numeric, funs(round(., 2))) %>%
+  remove_rownames() %>%
+  column_to_rownames(var = "Player")
+
+analysis <- 
+  soccer %>%
+  select(Player, Shots, SoT, Goals, Assts, KeyP) %>%
+  remove_rownames() %>%
+  column_to_rownames(var = "Player")
+
+analysis_stats <- data.frame(
+  Min = apply(analysis, 2, min), # minimum
+  Q1 = apply(analysis, 2, quantile, 1/4), # First quartile
+  Med = apply(analysis, 2, median), # median
+  Mean = apply(analysis, 2, mean), # mean
+  Q3 = apply(analysis, 2, quantile, 3/4), # Third quartile
+  Max = apply(analysis, 2, max) # Maximum
+)
+analysis_stats <- round(analysis_stats, 1)
+
+# add max/min to first two rows
+data <- rbind(c(21, 9, 4, 3, 14) , rep(0,5) , analysis)
+data <- data[1:5, ]
+
+colors_border <- c( rgb(0.2,0.5,0.5,0.9), rgb(0.8,0.2,0.5,0.9) , rgb(0.7,0.5,0.1,0.9) )
+colors_fill <- c( rgb(0.2,0.5,0.5,0.4), rgb(0.8,0.2,0.5,0.4) , rgb(0.7,0.5,0.1,0.4) )
+radarchart( data[-c(1,2),]  , axistype=0 , maxmin=F,
+            #custom polygon
+            pcol=colors_border , pfcol=colors_fill , plwd=4 , plty=1,
+            #custom the grid
+            cglcol="grey", cglty=1, axislabcol="black", cglwd=0.8, 
+            #custom labels
+            vlcex=0.8 
+)
+legend(x=0.7, y=1, legend = rownames(data[-c(1,2),]), bty = "n", pch=20 , col=colors_fill , text.col = "grey", cex=1.2, pt.cex=3)
+```
+
+### Advanced App Functions:
+
+* A Second comparison tab will be using a technique called principal component analysis (PCA) to transform the players' season stats to a metric with two dimensions that can be shown on a scatter plot. The user will be able to see where the two chosen players fall in this plot diagram. 
+
+* We will also use a clustering algorithm on the 2-dimensional data. The user will see a line chart showing what the optimal number of clusters will be. Then the user will choose the how many clusters to use (likely receiving an alert if they chose a suboptimal number). Visually, the user will see N number of circles around clusters in the scatter plot. If it does not slow down too much, the user will be able to move a slider bar from 1 to 8 (still TBD) and immediately see the changing circles in the plot below.
+
+> PCA (Principal Component Analysis):
+
+*  Principal component analysis (PCA) is a statistical procedure that uses an orthogonal transformation to convert a set of observations of possibly correlated variables into a set of values of linearly uncorrelated variables called principal components. 
+
+*  Used to explain the variance-covariance structure of a set of variables through linear combinations. It is often used as a dimensionality-reduction technique. 
+
+> PAM (Partitioning Around Medoids) Clustering:
+
+* The **k-medoids algorithm** is a clustering approach related to k-means clustering for partitioning a data set into k groups or clusters. In k-medoids clustering, each cluster is represented by one of the data point in the cluster. These points are named cluster medoids.
+
+* The term medoid refers to an object within a cluster for which average dissimilarity between it and all the other the members of the cluster is minimal. It corresponds to the most centrally located point in the cluster. These objects (one per cluster) can be considered as a representative example of the members of that cluster which may be useful in some situations. Recall that, in k-means clustering, the center of a given cluster is calculated as the mean value of all the data points in the cluster.
+
+* K-medoid is a robust alternative to k-means clustering. This means that, the algorithm is less sensitive to noise and outliers, compared to k-means, because it uses medoids as cluster centers instead of means (used in k-means).
+
+* The k-medoids algorithm requires the user to specify k, the number of clusters to be generated (like in k-means clustering). A useful approach to determine the optimal number of clusters is the **silhouette** method, described in the next sections.
+
+* The most common k-medoids clustering methods is the **PAM** algorithm (**Partitioning Around Medoids**, (Kaufman and Rousseeuw 1990)).
+
+### Programming Challenges:
+
+* We are unsure if we can have the app automatically update from the website to have the most current data as the 2018 season progresses.
+
+* Another challenge will be if we need to hard code thresholds to eliminate ineligible players or if we can use a dynamic threshold based on the season data.  Dynamic would allow this to be used with any similar soccer dataset.
+
+* We haven’t decided if it would be better to do two radar charts side-by-side or have one radar chart with two plots.  Depends on which is more visually appealing and it seems like they will use two different coding approaches.
+
+
+### Division of Labor:
+
+* Jacob will be writing the code to manipulate the data into what we need for the graphs.  For example, rather than comparing total goals, we want to compare goals per game.  But, games played is not the same as minutes played so we will need to do some conversions.  Plus, we will need to do some trimming to avoid potential problems with players who only played a few minutes in the entire season for example.  
+
+    + Only players who have played more than 450 minutes (~5 games) will be included in our data for the app.  
+    + Goalkeepers will not be included in our analysis
+    + We will include data from the last 3 MLS seasons (2015 - 2017) and the current 2018 season.
+
+* Ian will set up tab 1.  User will be able to choose which metrics they want to compare and, therefore, how many metrics to compare.  They will see the table that shows the league leader, league average, and each chosen players record for each chosen metric.  Below will be the radar diagram with the same information as the table, but in a more appealing visual format.
+
+* Bryce will set up the code for the principal component analysis and clustered scatter plots.
